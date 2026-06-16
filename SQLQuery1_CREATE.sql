@@ -1,7 +1,7 @@
--- Òàáëèöà Àêêàóíòîâ (ó÷¸òíûå çàïèñè)
+-- Таблица Аккаунтов (учётные записи)
 CREATE TABLE Accounts (
     ID INT IDENTITY(1,1) PRIMARY KEY,
-    email VARCHAR(255) UNIQUE NOT NULL,      -- Ëîãèí ïîëüçîâàòåëÿ
+    email VARCHAR(255) UNIQUE NOT NULL,      -- Логин пользователя
     password VARCHAR(255) NOT NULL
 );
 INSERT INTO Accounts
@@ -15,7 +15,7 @@ VALUES
 ('EWRTRYGH7IU@MAIL.RU','124HIU')
 SELECT *
 FROM Accounts
--- Ñîòðóäíèêè
+-- Сотрудники
 CREATE TABLE Employees (
     ID INT IDENTITY(1,1) PRIMARY KEY,
     full_name NVARCHAR(255) NOT NULL,
@@ -25,10 +25,10 @@ CREATE TABLE Employees (
 INSERT INTO Employees
 (full_name,account_id)
 VALUES
-(N'ÁÎÐÈÑ',2);
+(N'БОРИС',2);
 SELECT *
 FROM Employees
--- Êëèåíòû
+-- Клиенты
 CREATE TABLE Clients (
     ID INT IDENTITY(1,1) PRIMARY KEY,
     full_name NVARCHAR(255) NOT NULL,
@@ -38,22 +38,22 @@ CREATE TABLE Clients (
 INSERT INTO Clients
 (full_name,account_id)
 VALUES
-(N'ÁÎÐÈÑ àâà',3);
+(N'БОРИС ава',3);
 SELECT *
 FROM Clients
--- Äîëæíîñòè
+-- Должности
 CREATE TABLE Positions (
     ID INT IDENTITY(1,1) PRIMARY KEY,
     title NVARCHAR(255) NOT NULL,
-    Monthly_salary DECIMAL(10, 2) DEFAULT 80678 -- Îêëàä ïî óìîë÷àíèþ
+    Monthly_salary DECIMAL(10, 2) DEFAULT 80678 -- Оклад по умолчанию
 );
 INSERT INTO Positions 
 (title)
 VALUES
-(N'Ñïåö ïî ðåìîíòó')
+(N'Спец по ремонту')
 SELECT *
 FROM Positions
--- Îòäåëû
+-- Отделы
 CREATE TABLE Departments (
     ID INT IDENTITY(1,1) PRIMARY KEY,
     department_name NVARCHAR(255) NOT NULL,
@@ -66,11 +66,11 @@ CREATE TABLE Departments (
 INSERT INTO Departments
 (department_name,employee_id,position_id)
 VALUES
-(N'Ðóññêèé ðåìîíò',1,1)
+(N'Русский ремонт',1,1)
 SELECT *
 FROM Departments
 
--- Ýòàïû çàêàçîâ
+-- Этапы заказов
 CREATE TABLE Stages (
     ID INT IDENTITY(1,1) PRIMARY KEY,
     description TEXT NOT NULL
@@ -78,12 +78,12 @@ CREATE TABLE Stages (
 INSERT INTO Stages
 (description)
 VALUES
-(N'ïðèíåò'),
-(N'èäåò'),
-(N'ñäåëàí')
+(N'принет'),
+(N'идет'),
+(N'сделан')
 SELECT *
 FROM Stages
--- Çàêàçû
+-- Заказы
 CREATE TABLE Orders (
     ID INT IDENTITY(1,1) PRIMARY KEY,
     client_id INT NOT NULL,
@@ -105,7 +105,7 @@ FROM Orders
 
 
 CREATE PROCEDURE CheckOrderExists
-    @order_id INT -- Èäåíòèôèêàòîð ñîòðóäíèêà äëÿ ïðîâåðêè
+    @order_id INT -- Идентификатор сотрудника для проверки
 AS
 BEGIN
 SELECT
@@ -128,7 +128,7 @@ INSERT INTO Employees
 VALUES
 (@full_name,@account_id)
 END;
-EXEC AddingEmployeesExists @full_name='Áîðèñîâè÷ Èâàí Èâàíîâè÷', @account_id=1;
+EXEC AddingEmployeesExists @full_name='Борисович Иван Иванович', @account_id=1;
 SELECT *
 FROM Employees
 
@@ -152,14 +152,14 @@ BEGIN
     DECLARE @employee_id INT;
     SELECT @employee_id = ID FROM deleted;
 
-    -- Ïðîâåðÿåì, åñòü ëè îòäåëû, ïðèâÿçàííûå ê ýòîìó ñîòðóäíèêó
+    -- Проверяем, есть ли отделы, привязанные к этому сотруднику
     IF EXISTS (
         SELECT 1 
         FROM Departments d
         WHERE d.employee_id = @employee_id
     )
     BEGIN
-        RAISERROR('Íåâîçìîæíî óäàëèòü ñîòðóäíèêà, òàê êàê îí íàçíà÷åí ðóêîâîäèòåëåì îäíîãî èëè íåñêîëüêèõ îòäåëîâ.', 16, 1);
+        RAISERROR('Невозможно удалить сотрудника, так как он назначен руководителем одного или нескольких отделов.', 16, 1);
         ROLLBACK TRANSACTION;
         RETURN;
     END
@@ -169,14 +169,14 @@ BEGIN
 END;
 DELETE Employees
 
--- 1. Ðîëè
+-- 1. Роли
 CREATE ROLE Client;
 CREATE ROLE RepairSpecialist;
 CREATE ROLE _Admin;
 GO
 
--- 2. Ïðåäñòàâëåíèÿ
--- 2.1. Äëÿ ñïåöèàëèñòà ïî ðåìîíòó – âñå çàêàçû ñ äåòàëÿìè
+-- 2. Представления
+-- 2.1. Для специалиста по ремонту – все заказы с деталями
 CREATE VIEW vw_AllOrders AS
 SELECT 
     o.ID AS OrderID,
@@ -195,9 +195,9 @@ INNER JOIN Departments d ON o.department_id = d.ID
 INNER JOIN Stages s ON o.stage_id = s.ID;
 GO
 
--- 3. Õðàíèìûå ïðîöåäóðû
+-- 3. Хранимые процедуры
 
--- 3.1. Êëèåíò – ïðîñìîòð çàêàçîâ (ïî client_id)
+-- 3.1. Клиент – просмотр заказов (по client_id)
 CREATE PROCEDURE usp_ClientViewOrders
     @client_id INT
 AS
@@ -219,7 +219,7 @@ BEGIN
 END;
 GO
 
--- 3.2. Ñïåöèàëèñò ïî ðåìîíòó – ñîçäàíèå çàêàçà
+-- 3.2. Специалист по ремонту – создание заказа
 CREATE PROCEDURE usp_CreateOrder
     @client_id INT,
     @employee_id INT,
@@ -234,7 +234,7 @@ BEGIN
 END;
 GO
 
--- 3.3. Ñïåöèàëèñò ïî ðåìîíòó – èçìåíåíèå ñòàòóñà çàêàçà
+-- 3.3. Специалист по ремонту – изменение статуса заказа
 CREATE PROCEDURE usp_UpdateOrderStage
     @order_id INT,
     @new_stage_id INT
@@ -247,7 +247,7 @@ BEGIN
 END;
 GO
 
--- 3.4. Àäìèíèñòðàòîð – äîáàâëåíèå ñîòðóäíèêà
+-- 3.4. Администратор – добавление сотрудника
 CREATE PROCEDURE usp_AddEmployee
     @full_name NVARCHAR(255),
     @account_id INT
@@ -260,7 +260,7 @@ BEGIN
 END;
 GO
 
--- 3.5. Àäìèíèñòðàòîð – óäàëåíèå ñîòðóäíèêà ó÷èòûâàåò ñóùåñòâóþùèé òðèããåð
+-- 3.5. Администратор – удаление сотрудника учитывает существующий триггер
 CREATE PROCEDURE usp_DeleteEmployee
     @employee_id INT
 AS
@@ -270,9 +270,9 @@ BEGIN
 END;
 GO
 
--- 4. Íàçíà÷åíèå ðàçðåøåíèé (GRANT / DENY)
+-- 4. Назначение разрешений (GRANT / DENY)
 
--- 4.1. Ðîëü "Êëèåíò"
+-- 4.1. Роль "Клиент"
 
 GRANT EXECUTE ON usp_ClientViewOrders TO Client;
 
@@ -282,7 +282,7 @@ DENY SELECT ON Employees TO Client;
 DENY SELECT ON Departments TO Client;
 DENY SELECT ON Stages TO Client;
 
--- 4.2. Ðîëü "Ñïåöèàëèñò ïî ðåìîíòó"
+-- 4.2. Роль "Специалист по ремонту"
 
 GRANT EXECUTE ON usp_CreateOrder TO RepairSpecialist;
 GRANT EXECUTE ON usp_UpdateOrderStage TO RepairSpecialist;
@@ -291,7 +291,7 @@ GRANT SELECT ON vw_AllOrders TO RepairSpecialist;
 DENY INSERT, UPDATE ON Orders TO RepairSpecialist;
 
 
--- 4.3. Ðîëü "Àäìèíèñòðàòîð"
+-- 4.3. Роль "Администратор"
 
 GRANT EXECUTE ON usp_AddEmployee TO _Admin;
 GRANT EXECUTE ON usp_DeleteEmployee TO _Admin;
@@ -300,8 +300,8 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON Employees TO _Admin;
 GRANT SELECT, INSERT, UPDATE, DELETE ON Accounts TO _Admin;
 
 
--- 5. Äîïîëíèòåëüíûé òðèããåð äëÿ ëîãèðîâàíèÿ èçìåíåíèé ñòàòóñà çàêàçà
--- Ñîçäà¸ì òàáëèöó äëÿ ëîãîâ (åñëè å¸ åù¸ íåò)
+-- 5. Дополнительный триггер для логирования изменений статуса заказа
+-- Создаём таблицу для логов (если её ещё нет)
 IF OBJECT_ID('OrderStatusLog', 'U') IS NULL
 BEGIN
     CREATE TABLE OrderStatusLog (
@@ -315,7 +315,7 @@ BEGIN
 END;
 GO
 
--- Òðèããåð, ñðàáàòûâàþùèé ïîñëå îáíîâëåíèÿ stage_id
+-- Триггер, срабатывающий после обновления stage_id
 CREATE TRIGGER trg_OrderStatusChange
 ON Orders
 AFTER UPDATE
@@ -392,7 +392,7 @@ END
 GO
 
 -- Процедура для просмотра клиентов 
-CREATE PROCEDURE usp_ViewClients
+CREATE PROCEDURE usp_ViewClientsRepairSpecialist
     @client_id INT = NULL,
     @full_name NVARCHAR(255) = NULL
 AS
@@ -408,3 +408,8 @@ BEGIN
     ORDER BY full_name;
 END
 GO
+
+
+GRANT SELECT ON vw_Clients TO RepairSpecialist;
+GRANT EXECUTE ON usp_CreateClientRepairSpecialist TO RepairSpecialist;
+GRANT EXECUTE ON usp_ViewClientsRepairSpecialist TO RepairSpecialist;
